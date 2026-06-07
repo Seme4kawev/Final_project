@@ -61,18 +61,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: set lower case repository name
+        run: |
+          echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ env.REPO_LC }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./frontend
           push: true
-          tags: ghcr.io/${{ github.repository }}/vds-test:${{ github.sha }}
+          tags: ghcr.io/${{ env.REPO_LC }}/vds-test:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
 
   # 4. Деплой на сервер (аналог deploy-job)
@@ -88,6 +92,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # Переводим название репозитория в нижний регистр
+            REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+
             # Логинимся в GHCR на сервере
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
@@ -95,5 +102,5 @@ jobs:
             docker stop mynginx1 || true
             docker rm mynginx1 || true
             
-            # Запускаем новый контейнер
-            docker run --name mynginx1 -p 80:80 -d ghcr.io/${{ github.repository }}/vds-test:${{ github.sha }}
+            # Запускаем новый контейнер (для frontend используется порт 5173)
+            docker run --name mynginx1 -p 80:5173 -d ghcr.io/${REPO_LC}/vds-test:${{ github.sha }}
