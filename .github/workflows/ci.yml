@@ -36,7 +36,7 @@ jobs:
           node-version: '20'
 
       - name: Установка зависимостей
-        run: npm ci
+        run: npm install
 
       - name: Тестовая сборка (Build)
         run: npm run build
