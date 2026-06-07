@@ -41,50 +41,26 @@ jobs:
       - name: Тестовая сборка (Build)
         run: npm run build
 
-  # 3. Сборка и публикация Docker-образа (аналог build-job)
-  build-and-push:
+  # 3. Деплой на сервер (копирование файлов и запуск docker compose)
+  deploy:
     runs-on: ubuntu-latest
-    # Запускаем только после успешных проверок и только в ветке main
+    # Запускаем только после успешных проверок
     needs: [docker-build, frontend-check]
     if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to the Container registry (GitHub Container Registry)
-        uses: docker/login-action@v3
+      - name: Copy project files to server
+        uses: appleboy/scp-action@v0.1.7
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          host: ${{ secrets.VM_IPADDRESS }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "."
+          target: "/opt/final_project"
+          rm: true
 
-      - name: set lower case repository name
-        run: |
-          echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ env.REPO_LC }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ghcr.io/${{ env.REPO_LC }}/vds-test:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  # 4. Деплой на сервер (аналог deploy-job)
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main'
-    steps:
       - name: Deploy application via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -92,15 +68,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            # Переводим название репозитория в нижний регистр
-            REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-
-            # Логинимся в GHCR на сервере
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # Останавливаем и удаляем старый контейнер, если есть
-            docker stop mynginx1 || true
-            docker rm mynginx1 || true
-            
-            # Запускаем новый контейнер (для frontend используется порт 5173)
-            docker run --name mynginx1 -p 80:5173 -d ghcr.io/${REPO_LC}/vds-test:${{ github.sha }}
+            cd /opt/final_project
+            # Задаем порт 80 для фронтенда перед запуском
+            export FRONTEND_PORT=80
+            docker compose down || true
+            docker compose up -d --build
