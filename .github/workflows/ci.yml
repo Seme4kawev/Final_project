@@ -90,7 +90,7 @@ jobs:
         with:
           host: ${{ secrets.VM_IPADDRESS }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             # Переводим название репозитория в нижний регистр
             REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
