@@ -1,0 +1,45 @@
+name: CI Pipeline
+
+# Пайплайн запускается при пуше в ветку main и при создании Pull Request-ов
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # 1. Проверка сборки Docker-контейнеров
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Отладка (Checkout кода)
+        uses: actions/checkout@v4
+
+      - name: Проверка сборки Docker Compose
+        run: docker compose build
+
+  # 2. Проверка фронтенда (React)
+  frontend-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v4
+
+      - name: Настройка Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Проверка кода (Lint)
+        run: npm run lint
+
+      - name: Тестовая сборка (Build)
+        run: npm run build
